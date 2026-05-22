@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "327916648998",
+    "project_id": "ainotes-mpf7bf5u",
+    "storage_bucket": "ainotes-mpf7bf5u.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327916648998:android:4b097ee429ab34c61284e7",
+        "android_client_info": {
+          "package_name": "com.ainotes"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "327916648998-orfcd6ngeg8d0ljun64l9m2jpisphd9o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ainotes",
+            "certificate_hash": "413a51bf02138aab7d03c1af7a4894f7a5a76d24"
+          }
+        },
+        {
+          "client_id": "327916648998-4l6l2mds9n7fbp4us9ivvluta0fe0398.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDlck96FAqOZ65nECpcfr6m9OgSKPpJGE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "327916648998-4l6l2mds9n7fbp4us9ivvluta0fe0398.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

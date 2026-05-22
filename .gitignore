@@ -1,52 +1,11 @@
-# ── Build Artifacts ──────────────────────────────────────────────────────────
-/build
-app/build
-**/build/
-*.apk
-*.aab
-*.ap_
-
-# ── Gradle ────────────────────────────────────────────────────────────────────
-.gradle/
-*.gradle
-!build.gradle.kts
-!settings.gradle.kts
-gradle-app.setting
-.gradletasknamecache
-
-# ── Sensitive / Local Config ──────────────────────────────────────────────────
-# Contains SDK path + GEMINI_API_KEY — NEVER commit this
+.gradle
 local.properties
-
-# Contains Firebase private keys — NEVER commit this
-app/google-services.json
-
-# ── IDE & Editor ──────────────────────────────────────────────────────────────
-.idea/
 *.iml
-*.iws
-*.ipr
+.idea
 .DS_Store
-Thumbs.db
-.vscode/
-
-# ── Kotlin ────────────────────────────────────────────────────────────────────
-.kotlin/
-
-# ── Android Studio Captures ───────────────────────────────────────────────────
+/build
 /captures
-
-# ── Native ────────────────────────────────────────────────────────────────────
-.externalNativeBuild/
-.cxx/
-
-# ── Keystore (keep debug, exclude release) ────────────────────────────────────
+.externalNativeBuild
+.cxx
 *.keystore
 !debug.keystore
-*.jks
-
-# ── Scratch / Debug Files ──────────────────────────────────────────────────────
-build_errors.txt
-build_errors2.txt
-setup_firebase.js
-*.log

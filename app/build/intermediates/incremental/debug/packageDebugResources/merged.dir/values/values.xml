@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0A0A1A</color>
+    <string name="app_name">AInotes</string>
+    <string name="channel_name">Document Processing</string>
+    <string name="default_web_client_id" translatable="false">327916648998-4l6l2mds9n7fbp4us9ivvluta0fe0398.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">327916648998</string>
+    <string name="generate_button">Generate Notes</string>
+    <string name="google_api_key" translatable="false">AIzaSyCDlck96FAqOZ65nECpcfr6m9OgSKPpJGE</string>
+    <string name="google_app_id" translatable="false">1:327916648998:android:4b097ee429ab34c61284e7</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCDlck96FAqOZ65nECpcfr6m9OgSKPpJGE</string>
+    <string name="google_storage_bucket" translatable="false">ainotes-mpf7bf5u.firebasestorage.app</string>
+    <string name="history_title">History</string>
+    <string name="home_subtitle">AI-Powered Study Notes</string>
+    <string name="home_title">AInotes</string>
+    <string name="no_sessions">No sessions yet</string>
+    <string name="project_id" translatable="false">ainotes-mpf7bf5u</string>
+    <string name="upload_hint">PDF (any size) • Images • Handwritten notes</string>
+    <style name="Theme.AInotes" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>
