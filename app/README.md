@@ -69,28 +69,30 @@ AInotes is architected using **MVVM (Model-View-ViewModel)** and **Clean Archite
 
 ```mermaid
 flowchart TD
-    subgraph Presentation Layer
+
+    subgraph "Presentation Layer"
         UI[Jetpack Compose UI Screens] <--> VM[ViewModels]
     end
-    
-    subgraph Domain & Data Layer
+
+    subgraph "Domain and Data Layer"
         VM <--> Repo[Clean Repository Interfaces]
         Repo <--> Room[Local Room Database Cache]
         Repo <--> Sync[FirebaseSyncRepository]
         Repo <--> Gemini[Gemini API Client]
     end
 
-    subgraph External Services
-        Sync <--> Fire[Cloud Firestore & Auth]
+    subgraph "External Services"
+        Sync <--> Fire[Cloud Firestore and Auth]
         Gemini <--> GoogleAPI[Google Generative Language API]
     end
-    
-    style Presentation Layer fill:#efe,stroke:#3b3,stroke-width:2px
-    style Domain & Data Layer fill:#eef,stroke:#33b,stroke-width:2px
-    style External Services fill:#fee,stroke:#b33,stroke-width:2px
-```
 
----
+    style UI fill:#bbf,stroke:#333,stroke-width:2px
+    style VM fill:#bbf,stroke:#333,stroke-width:2px
+    style Repo fill:#bfb,stroke:#333,stroke-width:2px
+    style Room fill:#bfb,stroke:#333,stroke-width:2px
+    style Sync fill:#bfb,stroke:#333,stroke-width:2px
+    style Gemini fill:#fbb,stroke:#333,stroke-width:2px
+```
 
 ## 🤖 AI Model Fallback Pipeline
 
