@@ -34,7 +34,8 @@ AInotes is engineered with **state-of-the-art mobile UI aesthetics** featuring a
 | ![Onboarding](../assets/screenshots/ss_onboarding.png) | ![Dashboard](../assets/screenshots/ss_dashboard.png) | ![Create Note](../assets/screenshots/ss_create_note.png) |
 
 | 🤖 4. AI Orbit Loader | 📚 5. My Notes Library |
-| ![AI Loader](../assets/screenshots/ss_ai_loading.png) | ![My Notes](../assets/screenshots/ss_my_notes.png) | 
+| :---: | :---: |
+| ![AI Loader](../assets/screenshots/ss_ai_loading.png) | ![My Notes](../assets/screenshots/ss_my_notes.png) |
 
 ### 🎨 Design Highlights:
 *   **Premium Theme Palette:** Built on a customized violet primary (`#6C5CE7`), deep indigo highlights, soft lavender card containers (`#F7F6FF`), and teal accents (`#00B894`).
