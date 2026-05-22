@@ -34,7 +34,6 @@ AInotes is engineered with **state-of-the-art mobile UI aesthetics** featuring a
 | ![Onboarding](../assets/screenshots/ss_onboarding.png) | ![Dashboard](../assets/screenshots/ss_dashboard.png) | ![Create Note](../assets/screenshots/ss_create_note.png) |
 
 | 🤖 4. AI Orbit Loader | 📚 5. My Notes Library |
-| :---: | :---: | :---: |
 | ![AI Loader](../assets/screenshots/ss_ai_loading.png) | ![My Notes](../assets/screenshots/ss_my_notes.png) | 
 
 ### 🎨 Design Highlights:
