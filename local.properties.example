@@ -1,0 +1,8 @@
+# Copy this file to local.properties and fill in your values.
+# local.properties is NOT committed to git (it contains sensitive keys).
+
+# Android SDK path (set automatically by Android Studio)
+sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
+
+# Gemini AI API Key — get yours at: https://aistudio.google.com/
+GEMINI_API_KEY=your_gemini_api_key_here

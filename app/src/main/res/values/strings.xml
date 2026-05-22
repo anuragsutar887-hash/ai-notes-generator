@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AInotes</string>
+    <string name="channel_name">Document Processing</string>
+    <string name="home_title">AInotes</string>
+    <string name="home_subtitle">AI-Powered Study Notes</string>
+    <string name="upload_hint">PDF (any size) • Images • Handwritten notes</string>
+    <string name="generate_button">Generate Notes</string>
+    <string name="history_title">History</string>
+    <string name="no_sessions">No sessions yet</string>
+</resources>
