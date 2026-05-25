@@ -2,20 +2,20 @@
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.0-blue.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Compose-1.6.0-purple.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack/compose)
-[![Firebase Cloud Functions](https://img.shields.io/badge/Firebase_Backend-Cloud_Functions-orange.svg?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
+[![Firebase Cloud Firestore](https://img.shields.io/badge/Firebase_Backend-Firestore-orange.svg?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
 [![Room DB](https://img.shields.io/badge/Room_DB-Local_SQLite-green.svg?style=for-the-badge&logo=sqlite)](https://developer.android.com/training/data-storage/room)
 [![Architecture](https://img.shields.io/badge/Architecture-MVVM_Clean-red.svg?style=for-the-badge)](https://developer.android.com/topic/architecture)
 
-An ultra-premium, high-fidelity Android application designed to elevate the study experience. Built entirely in **Jetpack Compose** and **Kotlin**, AInotes leverages local **Google ML Kit OCR**, raw **PDF text extraction**, and a secure **Firebase Cloud Functions server-side AI proxy** to transform documents, images, and handwritten notes into comprehensive study guides (summarized key points, formulas, interactive 3D flashcards, and practice exam questions).
+An ultra-premium, high-fidelity Android application designed to elevate the study experience. Built entirely in **Jetpack Compose** and **Kotlin**, AInotes leverages local **Google ML Kit OCR**, raw **PDF text extraction**, and a secure **Firebase Firestore dynamic API key delivery system** to transform documents, images, and handwritten notes into comprehensive study guides (summarized key points, formulas, interactive 3D flashcards, and practice exam questions).
 
-Unlike generic AI apps that force users to register their own API keys, **AInotes operates like a real-world production application**. The Gemini API key is stored securely on the backend server—never embedded inside the APK or visible to clients. Users simply open the app, authenticate with Google, and begin generating notes instantly.
+Unlike generic AI apps that force users to register their own API keys, **AInotes operates like a real-world production application**. The Gemini API key is stored securely inside your Firebase Firestore database—never embedded inside the APK or visible to clients. The app dynamically fetches the key on generation and uses it directly. Users simply open the app, authenticate with Google, and begin generating notes instantly.
 
 ---
 
 ## 📖 Table of Contents
 1. [🎨 Premium UI/UX & Visual Preview](#-premium-uiux--visual-preview)
 2. [✨ Key Features](#-key-features)
-3. [🛡️ Secure Server-Side Architecture](#%EF%B8%8F-secure-server-side-architecture)
+3. [🛡️ Secure Server-Side Firestore Architecture](#%EF%B8%8F-secure-server-side-firestore-architecture)
 4. [🤖 AI Model Fallback Chain](#-ai-model-fallback-chain)
 5. [⚙️ System Architecture Diagram](#%EF%B8%8F-system-architecture-diagram)
 6. [📁 Codebase Directory Structure](#-codebase-directory-structure)
@@ -65,32 +65,34 @@ AInotes is engineered with **state-of-the-art mobile UI aesthetics** featuring a
 
 ---
 
-## 🛡️ Secure Server-Side Architecture
+## 🛡️ Secure Server-Side Firestore Architecture
 
 In standard client-side AI apps, the Gemini API key must be compiled into `local.properties` or typed in by the user. This poses major security risks (key leakage) and creates friction for everyday users. 
 
-AInotes completely resolves this with a **Firebase Cloud Functions backend proxy**:
+AInotes completely resolves this with a **100% Free Firebase Firestore secure key delivery system**:
 
 ```
 [User Phone (AInotes Client)] 
-           │ (HTTPS Callable)
+           │ (1. Fetches secure key dynamically on note request)
            ▼
-[Firebase Cloud Function (generateNotes)] ──► Reads API key securely from server config
+[Firebase Firestore (secrets/gemini)] ──► Reads API key securely from protected document
            │ 
            ▼
 [Google Gemini API] ──► Processes document & returns structured study notes
 ```
 
 ### Key Advantages:
-1. **Zero Setup for Users:** Users do not need to register on Google AI Studio or obtain an API key. The app "just works" out of the box.
-2. **Hidden Secrets:** The Gemini API key resides strictly in your Firebase Google Cloud console config—completely safe from reverse-engineering or APK decompilation.
-3. **Protected Endpoints:** Only successfully authenticated Firebase users can call the proxy function, preventing anonymous API abuse and spam.
+1. **100% Free**: Operates entirely within the free Firebase Spark plan. No billing or credit card required.
+2. **Zero Setup for Users:** Users do not need to register on Google AI Studio or obtain an API key. The app "just works" out of the box.
+3. **Hidden Secrets:** The Gemini API key resides strictly in your Firebase Firestore Database—completely safe from reverse-engineering or APK decompilation.
+4. **Dynamic Key Rotation:** Change, rotate, or revoke your API key instantly in the Firebase console without compiling new APKs!
+5. **Security Rules**: Database rules restrict read access strictly to authenticated users, preventing key theft by anonymous scrapers.
 
 ---
 
 ## 🤖 AI Model Fallback Chain
 
-To guarantee high availability and bypass API rate limits under heavy traffic, our backend implements a robust **Exponential Backoff & Generative Model Fallback Chain**. If the primary model fails or returns a rate limit (HTTP 429), the server seamlessly cascades through next-in-line Gemini models:
+To guarantee high availability and bypass API rate limits under heavy traffic, our repository implements a robust **Exponential Backoff & Generative Model Fallback Chain**. If the primary model fails or returns a rate limit (HTTP 429), the app seamlessly cascades through next-in-line Gemini models:
 
 ```mermaid
 graph LR
@@ -123,12 +125,12 @@ flowchart TD
         VM <--> Repo[SessionRepository / AuthRepository]
         Repo <--> Room[Local Room SQLite DB]
         Repo <--> CloudSync[FirebaseSyncRepository]
-        Repo <--> BackendProxy[FirebaseFunctions calling generateNotes]
+        Repo <--> GeminiRepo[GeminiRepository fetching secure key from Firestore]
     end
 
     subgraph ExtServices["Secure External Infrastructure"]
         CloudSync <--> FireStore[Cloud Firestore & Auth]
-        BackendProxy <--> GoogleGemini[Google Generative Language API]
+        GeminiRepo <--> GoogleGemini[Google Generative Language API via direct REST]
     end
     
     style PresLayer fill:#efe,stroke:#3b3,stroke-width:2px
@@ -156,7 +158,7 @@ com.ainotes
 │   └── repository
 │       ├── AuthRepository.kt      # Interface for Firebase Auth
 │       ├── AuthRepositoryImpl.kt  # Implementation of Firebase Auth
-│       ├── GeminiRepository.kt    # Secure HttpsCallable proxy wrapper with model backoffs
+│       ├── GeminiRepository.kt    # Secure REST wrapper with model backoffs & Firestore key fetch
 │       ├── SessionRepository.kt   # Local data persistence coordinator
 │       ├── ProfileRepository.kt   # Interface for User Profile fetching
 │       ├── ProfileRepositoryImpl.kt # Firestore Implementation for User Profiles
@@ -164,7 +166,7 @@ com.ainotes
 │
 ├── di
 │   ├── AppModule.kt               # Dagger Hilt Database / Utility bindings
-│   └── FirebaseModule.kt          # Dagger Hilt Firebase Auth / Functions bindings
+│   └── FirebaseModule.kt          # Dagger Hilt Firebase Auth / Firestore bindings
 │
 ├── service
 │   └── DocumentProcessingService.kt # Background task runner
@@ -196,7 +198,6 @@ com.ainotes
 *   Android Studio Jellyfish (or newer)
 *   JDK 17 configured in Android Studio Gradle settings
 *   Android SDK 34 (Android 14) or higher
-*   Node.js (v18+) and npm installed locally (for backend deployment)
 
 ### 2. Connect Firebase Config
 1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project named `ainotes`.
@@ -206,44 +207,39 @@ com.ainotes
 
 ---
 
-### 🚀 Deploying the Backend Proxy (One-Time Setup)
+### 🚀 Deploying the Secure Key (100% Free Spark Plan)
 
-To activate the AI server-side proxy so the APK works without a locally compiled key, run the following steps:
+To activate the secure key system so the APK runs without compiling local keys:
 
-#### **Step A: Upgrade to Blaze Plan**
-Firebase Cloud Functions require the **Blaze (pay-as-you-go) plan**. 
-* **Cost Note:** You remain inside the massive free tier (**2 million free function invocations per month**). You will not be charged unless you exceed these limits.
-1. Go to: `https://console.firebase.google.com/project/ainotes-mpf7bf5u/usage/details`
-2. Click **"Upgrade"** and choose the **Blaze Plan**.
+#### **Step A: Add Firestore Document**
+1. Go to your **Firebase Console → Firestore Database**.
+2. Click **Start collection** (or add to an existing collection).
+3. Set **Collection ID**: `secrets` and click Next.
+4. Set **Document ID**: `gemini`
+5. Add a field:
+   *   **Field name**: `key`
+   *   **Type**: `string`
+   *   **Value**: *Paste your free Gemini API key here* (from [Google AI Studio](https://aistudio.google.com/apikey))
+6. Click **Save**.
 
-#### **Step B: Install Firebase CLI**
-Open your terminal and run:
-```bash
-npm install -g firebase-tools
+#### **Step B: Secure Firestore Database Rules**
+1. Navigate to the **Rules** tab in the Firestore Database console.
+2. Publish these rules to restrict key read permissions to authenticated users only:
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /secrets/gemini {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
 ```
-
-#### **Step C: Login to Firebase**
-```bash
-firebase login
-```
-A browser window will open. Sign in with your Google account that owns the Firebase project.
-
-#### **Step D: Set the Gemini API Key on Firebase**
-Inject your Gemini API key securely into your cloud environment (replace with your actual key from [Google AI Studio](https://aistudio.google.com/)):
-```bash
-firebase functions:config:set gemini.key="YOUR_GEMINI_API_KEY" --project ainotes-mpf7bf5u
-```
-
-#### **Step E: Deploy Cloud Functions**
-Deploy the Javascript backend server directly to Firebase:
-```bash
-# Navigate to the root directory
-cd "c:\Users\anurag\Desktop\AInotes"
-
-# Deploy functions
-firebase deploy --only functions --project ainotes-mpf7bf5u
-```
-Once completed successfully, you'll see `✔  Deploy complete!` and your function is live!
 
 ---
 
