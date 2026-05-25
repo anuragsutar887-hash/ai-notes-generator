@@ -89,7 +89,7 @@ class GeminiRepository @Inject constructor(
         }
 
         // Print clear diagnostics to Logcat to help align the key source
-        Log.d(
+        Log.i(
             TAG,
             "generateWithFallback: Using key from ${if (fetchedFromFirestore) "Firestore" else "local.properties fallback"} (length=${apiKey.length}, startsWith=${if (apiKey.length > 5) apiKey.substring(0, 5) else "N/A"})"
         )
