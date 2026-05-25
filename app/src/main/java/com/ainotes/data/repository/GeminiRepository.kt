@@ -1,5 +1,7 @@
 package com.ainotes.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
 import com.ainotes.BuildConfig
@@ -9,7 +11,9 @@ import com.ainotes.util.OcrHelper
 import com.ainotes.util.PdfChunker
 import com.google.gson.Gson
 import com.google.gson.JsonParser
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
@@ -17,7 +21,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 data class ProcessingProgress(
-    val stage: String,          // "Extracting text", "Analyzing with AI", etc.
+    val stage: String,
     val currentPage: Int = 0,
     val totalPages: Int = 0,
     val chunkIndex: Int = 0,
@@ -34,78 +38,163 @@ sealed class GeminiResult {
 class GeminiRepository @Inject constructor(
     private val pdfChunker: PdfChunker,
     private val ocrHelper: OcrHelper,
-    private val fileHelper: FileHelper
+    private val fileHelper: FileHelper,
+    @ApplicationContext private val context: Context
 ) {
     companion object {
         private const val TAG = "GeminiRepository"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+        private const val PREFS_NAME = "ainotes_prefs"
+        private const val KEY_USER_API_KEY = "user_gemini_api_key"
+
+        // Maximum retries for rate-limit (429) errors before giving up
+        private const val MAX_RATE_LIMIT_RETRIES = 4
+
+        // These are the REAL, currently active Gemini model names (as of 2025-2026)
+        private val MODELS = listOf(
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b",
+            "gemini-1.5-pro",
+            "gemini-2.5-flash-preview-05-20",
+            "gemini-2.5-pro-preview-05-06"
+        )
     }
 
     private val gson = Gson()
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     /**
-     * Calls the Gemini REST API directly — bypasses the SDK's buggy gRPC serialization
-     * that crashes on error responses (MissingFieldException for 'details' field).
-     * Tries models in order; falls back to next on non-quota failure.
+     * Returns the active API key. Prefers user-saved key (entered in settings) over the
+     * build-time key baked into the APK. This ensures each user can use their own key
+     * and avoids shared rate-limit exhaustion.
+     */
+    fun getActiveApiKey(): String {
+        val userKey = prefs.getString(KEY_USER_API_KEY, null)
+        if (!userKey.isNullOrBlank()) return userKey
+        return BuildConfig.GEMINI_API_KEY
+    }
+
+    /** Called from Settings screen to save user's own API key */
+    fun saveUserApiKey(key: String) {
+        prefs.edit().putString(KEY_USER_API_KEY, key.trim()).apply()
+    }
+
+    /** Called from Settings screen to clear user's API key (revert to built-in) */
+    fun clearUserApiKey() {
+        prefs.edit().remove(KEY_USER_API_KEY).apply()
+    }
+
+    /** Returns true if the user has set their own API key */
+    fun hasUserApiKey(): Boolean = !prefs.getString(KEY_USER_API_KEY, null).isNullOrBlank()
+
+    /**
+     * Calls the Gemini REST API with:
+     * 1. Exponential backoff retry for 429 (rate limit) responses
+     * 2. Cascading model fallback for non-retryable errors
+     * 3. Proper validation of the API key
      */
     private suspend fun generateWithFallback(prompt: String): String = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        Log.d(TAG, "generateWithFallback: apiKey length is ${apiKey.length}")
+        val apiKey = getActiveApiKey()
+        Log.d(TAG, "generateWithFallback: using key length=${apiKey.length}")
         if (apiKey.isBlank() || apiKey == "YOUR_API_KEY") {
             throw IllegalArgumentException(
-                "Gemini API Key is not configured. Please add GEMINI_API_KEY=your_key to local.properties and rebuild the app."
+                "Gemini API Key is not configured. Please go to Settings and enter your API key from aistudio.google.com/apikey"
             )
         }
-
-        val models = listOf(
-            "gemini-2.5-flash",
-            "gemini-3.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-latest",
-            "gemini-2.0-flash",
-            "gemini-2.5-pro"
-        )
 
         val requestBodyJson = buildRequestJson(prompt)
         var lastError = "All models failed."
 
-        for (modelName in models) {
-            try {
-                Log.d(TAG, "Attempting generation with model: $modelName")
-                val url = java.net.URL("$BASE_URL/$modelName:generateContent?key=$apiKey")
-                val connection = (url.openConnection() as java.net.HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    setRequestProperty("Content-Type", "application/json")
-                    doOutput = true
-                    connectTimeout = 30_000
-                    readTimeout = 90_000
-                }
+        for (modelName in MODELS) {
+            // For each model, try with exponential backoff on rate limits
+            var retryCount = 0
+            var rateLimitHit = false
 
-                connection.outputStream.use { os ->
-                    os.write(requestBodyJson.toByteArray(Charsets.UTF_8))
-                }
+            while (retryCount <= MAX_RATE_LIMIT_RETRIES) {
+                try {
+                    if (retryCount > 0) {
+                        // Exponential backoff: 2s, 4s, 8s, 16s
+                        val backoffMs = (2_000L * (1 shl (retryCount - 1))).coerceAtMost(20_000L)
+                        Log.d(TAG, "Rate limit hit on $modelName. Backing off ${backoffMs}ms (retry $retryCount/$MAX_RATE_LIMIT_RETRIES)")
+                        delay(backoffMs)
+                    }
 
-                val responseCode = connection.responseCode
-                val responseText = if (responseCode == 200) {
-                    connection.inputStream.bufferedReader(Charsets.UTF_8).readText()
-                } else {
-                    connection.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
-                }
+                    Log.d(TAG, "Attempting generation with model: $modelName (attempt ${retryCount + 1})")
+                    val url = java.net.URL("$BASE_URL/$modelName:generateContent?key=$apiKey")
+                    val connection = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json")
+                        doOutput = true
+                        connectTimeout = 30_000
+                        readTimeout = 120_000
+                    }
 
-                if (responseCode == 200) {
-                    val text = parseGenerationResponse(responseText, modelName)
-                    Log.d(TAG, "Success with model: $modelName, response length: ${text.length}")
-                    return@withContext text
-                } else {
-                    val errorMsg = extractErrorMessage(responseText, responseCode)
-                    Log.w(TAG, "Model $modelName returned HTTP $responseCode: $errorMsg")
-                    // Log error and try next model
-                    lastError = errorMsg
-                }
+                    connection.outputStream.use { os ->
+                        os.write(requestBodyJson.toByteArray(Charsets.UTF_8))
+                    }
 
-            } catch (e: Exception) {
-                Log.w(TAG, "Model $modelName threw exception: ${e.message}", e)
-                lastError = e.message ?: "Unknown error"
+                    val responseCode = connection.responseCode
+                    val responseText = if (responseCode == 200) {
+                        connection.inputStream.bufferedReader(Charsets.UTF_8).readText()
+                    } else {
+                        connection.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+                    }
+
+                    when (responseCode) {
+                        200 -> {
+                            val text = parseGenerationResponse(responseText, modelName)
+                            Log.d(TAG, "Success with model: $modelName, length=${text.length}")
+                            return@withContext text
+                        }
+                        429 -> {
+                            // Rate limit — retry this model with backoff
+                            val errorMsg = extractErrorMessage(responseText, responseCode)
+                            Log.w(TAG, "Model $modelName rate limited (429): $errorMsg")
+                            lastError = "RATE_LIMIT:$errorMsg"
+                            rateLimitHit = true
+                            retryCount++
+                            // Don't break — continue the while loop to retry
+                        }
+                        404 -> {
+                            // Model doesn't exist — skip to next model immediately
+                            Log.w(TAG, "Model $modelName not found (404), trying next model")
+                            lastError = "Model not found: $modelName"
+                            break // Exit while loop, go to next model
+                        }
+                        503 -> {
+                            // Service unavailable — try once more after short delay
+                            val errorMsg = extractErrorMessage(responseText, responseCode)
+                            Log.w(TAG, "Model $modelName service unavailable (503): $errorMsg")
+                            lastError = errorMsg
+                            if (retryCount < 1) {
+                                retryCount++
+                                delay(3_000L)
+                            } else {
+                                break // Try next model
+                            }
+                        }
+                        else -> {
+                            val errorMsg = extractErrorMessage(responseText, responseCode)
+                            Log.w(TAG, "Model $modelName returned HTTP $responseCode: $errorMsg")
+                            lastError = errorMsg
+                            break // Try next model
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.w(TAG, "Model $modelName threw exception: ${e.message}", e)
+                    lastError = e.message ?: "Unknown error"
+                    break // Try next model
+                }
+            }
+
+            if (rateLimitHit && retryCount > MAX_RATE_LIMIT_RETRIES) {
+                // This model was exhausted after retries — try next model
+                Log.w(TAG, "Model $modelName exhausted all retries, trying next model")
             }
         }
 
@@ -114,7 +203,7 @@ class GeminiRepository @Inject constructor(
 
     /** Build the REST request JSON body */
     private fun buildRequestJson(prompt: String): String {
-        val escapedPrompt = gson.toJson(prompt) // safely escapes quotes and special chars
+        val escapedPrompt = gson.toJson(prompt)
         return """
             {
                 "contents": [
@@ -144,7 +233,6 @@ class GeminiRepository @Inject constructor(
                     parts[0].asJsonObject.get("text")?.asString ?: ""
                 } else ""
             } else {
-                // Check for promptFeedback (e.g. safety blocks)
                 val feedback = root.getAsJsonObject("promptFeedback")
                 val reason = feedback?.get("blockReason")?.asString
                 if (reason != null) {
@@ -172,7 +260,6 @@ class GeminiRepository @Inject constructor(
 
     /**
      * Main entry point: processes a document and returns study notes as a Flow.
-     * Emits progress updates then final result.
      */
     fun processDocument(
         uri: Uri,
@@ -182,7 +269,6 @@ class GeminiRepository @Inject constructor(
     ): Flow<GeminiResult> = flow {
 
         try {
-            // ── Step 1: Extract text ──────────────────────────────────────────
             emit(GeminiResult.Progress(ProcessingProgress("Extracting text from document…")))
 
             val textChunks = when (inputType) {
@@ -207,7 +293,6 @@ class GeminiRepository @Inject constructor(
                 return@flow
             }
 
-            // ── Step 2: Send each chunk to Gemini ─────────────────────────────
             val allFlashcards = mutableListOf<Flashcard>()
             val allKeyPoints = mutableListOf<KeyPoint>()
             val allFormulae = mutableListOf<Formula>()
@@ -216,7 +301,7 @@ class GeminiRepository @Inject constructor(
 
             textChunks.forEachIndexed { index, chunk ->
                 if (index > 0) {
-                    kotlinx.coroutines.delay(1000)
+                    delay(2000) // Brief pause between chunks to reduce rate limit pressure
                 }
                 emit(GeminiResult.Progress(
                     ProcessingProgress(
@@ -231,7 +316,6 @@ class GeminiRepository @Inject constructor(
 
                 Log.d(TAG, "Chunk ${index + 1} response length: ${responseText.length}")
 
-                // Parse the JSON response for each mode
                 when (mode) {
                     GenerationMode.FLASHCARDS -> allFlashcards.addAll(parseFlashcards(responseText))
                     GenerationMode.KEY_POINTS -> allKeyPoints.addAll(parseKeyPoints(responseText))
@@ -241,7 +325,6 @@ class GeminiRepository @Inject constructor(
                 }
             }
 
-            // ── Step 3: Emit final result ─────────────────────────────────────
             val notes = StudyNotes(
                 flashcards = allFlashcards,
                 keyPoints = allKeyPoints,
@@ -286,16 +369,17 @@ class GeminiRepository @Inject constructor(
     private fun cleanErrorMessage(e: Exception): String {
         val msg = e.message ?: "Unknown error occurred"
         return when {
-            msg.contains("Rate limit", ignoreCase = true) ->
-                "Rate limit reached. Please wait a few seconds and try again."
+            msg.startsWith("RATE_LIMIT:") || msg.contains("Rate limit", ignoreCase = true) ||
             msg.contains("quota", ignoreCase = true) ||
             msg.contains("ResourceExhausted", ignoreCase = true) ||
             msg.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
             msg.contains("429") ->
-                "Rate limit reached. Please wait a few seconds and try again."
+                "All AI models are currently busy (rate limit). Please get a free API key from aistudio.google.com/apikey and enter it in Settings to use the app without limits."
             msg.contains("503") || msg.contains("UNAVAILABLE", ignoreCase = true) ||
             msg.contains("high demand", ignoreCase = true) ->
                 "The AI service is temporarily unavailable due to high demand. Please try again in a moment."
+            msg.contains("API Key", ignoreCase = true) || msg.contains("not configured", ignoreCase = true) ->
+                "API Key not set. Please go to Settings and enter your free Gemini API key from aistudio.google.com/apikey"
             else -> msg
         }
     }
