@@ -1,25 +1,27 @@
 # 📝 AI Notes Generator (AInotes)
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.0-blue.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/Compose-1.6.0--alpha-purple.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack/compose)
-[![Gemini](https://img.shields.io/badge/Gemini_API-2.5--Flash-orange.svg?style=for-the-badge&logo=googlegemini)](https://ai.google.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-Sync--Auth-yellow.svg?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
+[![Jetpack Compose](https://img.shields.io/badge/Compose-1.6.0-purple.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack/compose)
+[![Firebase Cloud Functions](https://img.shields.io/badge/Firebase_Backend-Cloud_Functions-orange.svg?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
 [![Room DB](https://img.shields.io/badge/Room_DB-Local_SQLite-green.svg?style=for-the-badge&logo=sqlite)](https://developer.android.com/training/data-storage/room)
 [![Architecture](https://img.shields.io/badge/Architecture-MVVM_Clean-red.svg?style=for-the-badge)](https://developer.android.com/topic/architecture)
 
-An ultra-premium, high-fidelity Android application designed to elevate the study experience. Built entirely in **Jetpack Compose** and **Kotlin**, AInotes leverages local **Google ML Kit OCR**, raw **PDF text extraction**, and Google's next-generation **Gemini API REST fallbacks** to transform documents, images, and handwritten notes into comprehensive study guides (summarized key points, formulas, interactive flashcards, and practice exam questions).
+An ultra-premium, high-fidelity Android application designed to elevate the study experience. Built entirely in **Jetpack Compose** and **Kotlin**, AInotes leverages local **Google ML Kit OCR**, raw **PDF text extraction**, and a secure **Firebase Cloud Functions server-side AI proxy** to transform documents, images, and handwritten notes into comprehensive study guides (summarized key points, formulas, interactive 3D flashcards, and practice exam questions).
+
+Unlike generic AI apps that force users to register their own API keys, **AInotes operates like a real-world production application**. The Gemini API key is stored securely on the backend server—never embedded inside the APK or visible to clients. Users simply open the app, authenticate with Google, and begin generating notes instantly.
 
 ---
 
 ## 📖 Table of Contents
 1. [🎨 Premium UI/UX & Visual Preview](#-premium-uiux--visual-preview)
 2. [✨ Key Features](#-key-features)
-3. [⚙️ System Architecture](#%EF%B8%8F-system-architecture)
-4. [🤖 AI Model Fallback Pipeline](#-ai-model-fallback-pipeline)
-5. [📁 Codebase Directory Structure](#-codebase-directory-structure)
-6. [🛠️ Setup & Installation](#%EF%B8%8F-setup--installation)
-7. [🔐 Data Model & Local Schema](#-data-model--local-schema)
-8. [🤝 Contribution Guidelines](#-contribution-guidelines)
+3. [🛡️ Secure Server-Side Architecture](#%EF%B8%8F-secure-server-side-architecture)
+4. [🤖 AI Model Fallback Chain](#-ai-model-fallback-chain)
+5. [⚙️ System Architecture Diagram](#%EF%B8%8F-system-architecture-diagram)
+6. [📁 Codebase Directory Structure](#-codebase-directory-structure)
+7. [🛠️ Developer Setup & Deployment](#%EF%B8%8F-developer-setup--deployment)
+8. [🔐 Data Model & Local Schema](#-data-model--local-schema)
+9. [🤝 Contribution Guidelines](#-contribution-guidelines)
 
 ---
 
@@ -63,55 +65,75 @@ AInotes is engineered with **state-of-the-art mobile UI aesthetics** featuring a
 
 ---
 
-## ⚙️ System Architecture
+## 🛡️ Secure Server-Side Architecture
 
-AInotes is architected using **MVVM (Model-View-ViewModel)** and **Clean Architecture** patterns to ensure maximum testability, modularity, and clean separation of concerns.
+In standard client-side AI apps, the Gemini API key must be compiled into `local.properties` or typed in by the user. This poses major security risks (key leakage) and creates friction for everyday users. 
 
-```mermaid
-flowchart TD
-    subgraph PresLayer["Presentation Layer"]
-        UI[Jetpack Compose UI Screens] <--> VM[ViewModels]
-    end
-    
-    subgraph DomainDataLayer["Domain & Data Layer"]
-        VM <--> Repo[Clean Repository Interfaces]
-        Repo <--> Room[Local Room Database Cache]
-        Repo <--> Sync[FirebaseSyncRepository]
-        Repo <--> Gemini[Gemini API Client]
-    end
+AInotes completely resolves this with a **Firebase Cloud Functions backend proxy**:
 
-    subgraph ExtServices["External Services"]
-        Sync <--> Fire[Cloud Firestore & Auth]
-        Gemini <--> GoogleAPI[Google Generative Language API]
-    end
-    
-    style PresLayer fill:#efe,stroke:#3b3,stroke-width:2px
-    style DomainDataLayer fill:#eef,stroke:#33b,stroke-width:2px
-    style ExtServices fill:#fee,stroke:#b33,stroke-width:2px
 ```
+[User Phone (AInotes Client)] 
+           │ (HTTPS Callable)
+           ▼
+[Firebase Cloud Function (generateNotes)] ──► Reads API key securely from server config
+           │ 
+           ▼
+[Google Gemini API] ──► Processes document & returns structured study notes
+```
+
+### Key Advantages:
+1. **Zero Setup for Users:** Users do not need to register on Google AI Studio or obtain an API key. The app "just works" out of the box.
+2. **Hidden Secrets:** The Gemini API key resides strictly in your Firebase Google Cloud console config—completely safe from reverse-engineering or APK decompilation.
+3. **Protected Endpoints:** Only successfully authenticated Firebase users can call the proxy function, preventing anonymous API abuse and spam.
 
 ---
 
-## 🤖 AI Model Fallback Pipeline
+## 🤖 AI Model Fallback Chain
 
-To ensure **99.9% processing uptime** and protect users against API quota exhaustion, AInotes implements an automated **Generative Model Fallback Chain**. If the primary model fails or returns a rate limit (HTTP 429), the repository seamlessly falls back to the next model in line within milliseconds.
-
-Aligned with the latest **2026 API deprecation cycles**, AInotes routes calls through active, high-quota endpoints on `v1beta`:
+To guarantee high availability and bypass API rate limits under heavy traffic, our backend implements a robust **Exponential Backoff & Generative Model Fallback Chain**. If the primary model fails or returns a rate limit (HTTP 429), the server seamlessly cascades through next-in-line Gemini models:
 
 ```mermaid
 graph LR
-    Start([Start Note Request]) --> M1[1. gemini-2.5-flash]
-    M1 -- Quota / Error --> M2[2. gemini-3.5-flash]
-    M2 -- Quota / Error --> M3[3. gemini-3.1-flash-lite]
-    M3 -- Quota / Error --> M4[4. gemini-flash-latest]
-    M4 -- Quota / Error --> M5[5. gemini-2.0-flash]
-    M5 -- Quota / Error --> M6[6. gemini-2.5-pro]
-    M6 -- Success --> End([Study Guide Generated!])
+    Start([Start Note Request]) --> M1[1. gemini-2.0-flash]
+    M1 -- HTTP 429 / Error --> M2[2. gemini-2.0-flash-lite]
+    M2 -- HTTP 429 / Error --> M3[3. gemini-1.5-flash]
+    M3 -- HTTP 429 / Error --> M4[4. gemini-1.5-flash-8b]
+    M4 -- HTTP 429 / Error --> M5[5. gemini-1.5-pro]
+    M5 -- Success --> End([Study Guide Generated!])
     
     style M1 fill:#d5f5e3,stroke:#27ae60
     style M2 fill:#d5f5e3,stroke:#27ae60
     style M3 fill:#d5f5e3,stroke:#27ae60
     style End fill:#ebf5fb,stroke:#2980b9
+```
+
+---
+
+## ⚙️ System Architecture Diagram
+
+The codebase is built on strict **MVVM (Model-View-ViewModel)** and **Clean Architecture** patterns:
+
+```mermaid
+flowchart TD
+    subgraph PresLayer["Presentation Layer (Jetpack Compose UI)"]
+        UI[Screens / Composables] <--> VM[ViewModels]
+    end
+    
+    subgraph DomainDataLayer["Domain & Data Layer"]
+        VM <--> Repo[SessionRepository / AuthRepository]
+        Repo <--> Room[Local Room SQLite DB]
+        Repo <--> CloudSync[FirebaseSyncRepository]
+        Repo <--> BackendProxy[FirebaseFunctions calling generateNotes]
+    end
+
+    subgraph ExtServices["Secure External Infrastructure"]
+        CloudSync <--> FireStore[Cloud Firestore & Auth]
+        BackendProxy <--> GoogleGemini[Google Generative Language API]
+    end
+    
+    style PresLayer fill:#efe,stroke:#3b3,stroke-width:2px
+    style DomainDataLayer fill:#eef,stroke:#33b,stroke-width:2px
+    style ExtServices fill:#fee,stroke:#b33,stroke-width:2px
 ```
 
 ---
@@ -134,14 +156,15 @@ com.ainotes
 │   └── repository
 │       ├── AuthRepository.kt      # Interface for Firebase Auth
 │       ├── AuthRepositoryImpl.kt  # Implementation of Firebase Auth
-│       ├── GeminiRepository.kt    # Robust direct REST generative client with fallback chain
+│       ├── GeminiRepository.kt    # Secure HttpsCallable proxy wrapper with model backoffs
 │       ├── SessionRepository.kt   # Local data persistence coordinator
 │       ├── ProfileRepository.kt   # Interface for User Profile fetching
 │       ├── ProfileRepositoryImpl.kt # Firestore Implementation for User Profiles
 │       └── FirebaseSyncRepository.kt # Cloud sync & Auth coordinator
 │
 ├── di
-│   └── AppModule.kt               # Dagger Hilt dependency Injection bindings
+│   ├── AppModule.kt               # Dagger Hilt Database / Utility bindings
+│   └── FirebaseModule.kt          # Dagger Hilt Firebase Auth / Functions bindings
 │
 ├── service
 │   └── DocumentProcessingService.kt # Background task runner
@@ -149,9 +172,9 @@ com.ainotes
 ├── ui
 │   ├── screens
 │   │   ├── home                   # Dashboard & Create Note Screen
-│   │   ├── history                # Saved Study Library & Category Filters
+│   │   ├── history                # Bookmarked Study Library & Category Filters
 │   │   ├── results                # 5-Tab Interactive Study View
-│   │   ├── login                  # Premium Authentication Portal
+│   │   ├── login                  # Secure Authentication Portal
 │   │   └── profile                # User Profile & Setup screens
 │   │
 │   └── theme
@@ -167,33 +190,64 @@ com.ainotes
 
 ---
 
-## 🛠️ Setup & Installation
+## 🛠️ Developer Setup & Deployment
 
 ### 1. Requirements
 *   Android Studio Jellyfish (or newer)
 *   JDK 17 configured in Android Studio Gradle settings
 *   Android SDK 34 (Android 14) or higher
+*   Node.js (v18+) and npm installed locally (for backend deployment)
 
-### 2. Clone and Open
+### 2. Connect Firebase Config
+1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project named `ainotes`.
+2. Register a new Android application under the package name `com.ainotes`.
+3. Enable **Email & Password Authentication** and **Cloud Firestore Database**.
+4. Download your `google-services.json` file and place it in the `/app/` directory of the project.
+
+---
+
+### 🚀 Deploying the Backend Proxy (One-Time Setup)
+
+To activate the AI server-side proxy so the APK works without a locally compiled key, run the following steps:
+
+#### **Step A: Upgrade to Blaze Plan**
+Firebase Cloud Functions require the **Blaze (pay-as-you-go) plan**. 
+* **Cost Note:** You remain inside the massive free tier (**2 million free function invocations per month**). You will not be charged unless you exceed these limits.
+1. Go to: `https://console.firebase.google.com/project/ainotes-mpf7bf5u/usage/details`
+2. Click **"Upgrade"** and choose the **Blaze Plan**.
+
+#### **Step B: Install Firebase CLI**
+Open your terminal and run:
 ```bash
-git clone https://github.com/anuragsutar887-hash/ai-notes-generator.git
+npm install -g firebase-tools
 ```
-Open the project in Android Studio and let Gradle synchronize files.
 
-### 3. Add API Keys
-Open `local.properties` in your project's root folder and append your API key:
-```properties
-sdk.dir=C\:\\Users\\YOUR_NAME\\AppData\\Local\\Android\\Sdk
-GEMINI_API_KEY=AIzaSyCXapWMdSEcCrD2jpG57ERJZAIKtfYMoGA
+#### **Step C: Login to Firebase**
+```bash
+firebase login
 ```
-*(Gradle will automatically inject this value into `BuildConfig.GEMINI_API_KEY` at compile-time).*
+A browser window will open. Sign in with your Google account that owns the Firebase project.
 
-### 4. Connect Firebase Configuration
-1.  Navigate to [Firebase Console](https://console.firebase.google.com/) and register a new Android application under the package name `com.ainotes`.
-2.  Activate **Email & Password Authentication** and **Cloud Firestore Database**.
-3.  Download your generated `google-services.json` file and place it in the `/app/` directory of the project.
+#### **Step D: Set the Gemini API Key on Firebase**
+Inject your Gemini API key securely into your cloud environment (replace with your actual key from [Google AI Studio](https://aistudio.google.com/)):
+```bash
+firebase functions:config:set gemini.key="YOUR_GEMINI_API_KEY" --project ainotes-mpf7bf5u
+```
 
-### 5. Build debug APK
+#### **Step E: Deploy Cloud Functions**
+Deploy the Javascript backend server directly to Firebase:
+```bash
+# Navigate to the root directory
+cd "c:\Users\anurag\Desktop\AInotes"
+
+# Deploy functions
+firebase deploy --only functions --project ainotes-mpf7bf5u
+```
+Once completed successfully, you'll see `✔  Deploy complete!` and your function is live!
+
+---
+
+### 3. Build the APK
 Run from Gradle terminal:
 ```bash
 # Windows
@@ -202,13 +256,13 @@ Run from Gradle terminal:
 # macOS / Linux
 ./gradlew assembleDebug
 ```
-The resulting package will be compiled at `app/build/outputs/apk/debug/app-debug.apk`.
+The resulting package will be compiled at `app/build/outputs/apk/debug/app-debug.apk`. 
 
 ---
 
 ## 🔐 Data Model & Local Schema
 
-### `note_sessions` Table (Room Persistence)
+### `note_sessions` Table (Room SQLite Cache)
 | Column | DataType | Description |
 | :--- | :--- | :--- |
 | `id` | `String` (Primary Key) | Auto-generated Session UUID |
@@ -228,11 +282,11 @@ The resulting package will be compiled at `app/build/outputs/apk/debug/app-debug
 
 We highly appreciate contributions to make AInotes even better!
 
-1.  Fork the repository and clone it.
-2.  Create a descriptive branch (`git checkout -b feature/CoolNewComponent`).
-3.  Implement changes, adhering to clean MVVM and Kotlin Coroutine standards.
-4.  Ensure local builds compile cleanly using `.\gradlew.bat compileDebugKotlin`.
-5.  Submit a detailed Pull Request.
+1. Fork the repository and clone it.
+2. Create a descriptive branch (`git checkout -b feature/CoolNewComponent`).
+3. Implement changes, adhering to clean MVVM and Kotlin Coroutine standards.
+4. Ensure local builds compile cleanly using `.\gradlew.bat compileDebugKotlin`.
+5. Submit a detailed Pull Request.
 
 ---
 

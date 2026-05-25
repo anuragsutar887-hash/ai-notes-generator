@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.ainotes.data.local.ThemePreferences
 import com.ainotes.data.model.UserProfile
 import com.ainotes.data.repository.AuthRepository
-import com.ainotes.data.repository.GeminiRepository
 import com.ainotes.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,26 +17,21 @@ data class ProfileUiState(
     val uid: String = "",
     val name: String = "",
     val email: String = "",
-    val educationLevel: String = "", // "School" or "College"
+    val educationLevel: String = "",
     val classLevel: String = "",
     val degree: String = "",
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
     val saveSuccess: Boolean = false,
-    val isProfileLoaded: Boolean = false,
-    // API Key management
-    val apiKeyInput: String = "",
-    val hasUserApiKey: Boolean = false,
-    val apiKeyMessage: String? = null
+    val isProfileLoaded: Boolean = false
 )
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
-    private val themePreferences: ThemePreferences,
-    private val geminiRepository: GeminiRepository
+    private val themePreferences: ThemePreferences
 ) : ViewModel() {
 
     val themeMode: StateFlow<String> = themePreferences.themeModeFlow
@@ -51,10 +45,6 @@ class ProfileViewModel @Inject constructor(
 
     init {
         loadUserProfile()
-        // Load whether user already has a saved personal API key
-        _uiState.value = _uiState.value.copy(
-            hasUserApiKey = geminiRepository.hasUserApiKey()
-        )
     }
 
     fun loadUserProfile() {
@@ -190,38 +180,5 @@ class ProfileViewModel @Inject constructor(
 
     fun signOut() {
         authRepository.signOut()
-    }
-
-    // ─── API Key Management ───────────────────────────────────────────────────
-
-    fun onApiKeyInputChanged(key: String) {
-        _uiState.value = _uiState.value.copy(apiKeyInput = key, apiKeyMessage = null)
-    }
-
-    fun saveApiKey() {
-        val key = _uiState.value.apiKeyInput.trim()
-        if (key.isBlank()) {
-            _uiState.value = _uiState.value.copy(apiKeyMessage = "Please enter a valid API key.")
-            return
-        }
-        if (!key.startsWith("AIza")) {
-            _uiState.value = _uiState.value.copy(apiKeyMessage = "Invalid API key format. Keys start with 'AIza'.")
-            return
-        }
-        geminiRepository.saveUserApiKey(key)
-        _uiState.value = _uiState.value.copy(
-            hasUserApiKey = true,
-            apiKeyInput = "",
-            apiKeyMessage = "✅ Your API key has been saved! Rate limit errors should no longer occur."
-        )
-    }
-
-    fun clearApiKey() {
-        geminiRepository.clearUserApiKey()
-        _uiState.value = _uiState.value.copy(
-            hasUserApiKey = false,
-            apiKeyInput = "",
-            apiKeyMessage = "API key removed. Reverted to the shared built-in key."
-        )
     }
 }

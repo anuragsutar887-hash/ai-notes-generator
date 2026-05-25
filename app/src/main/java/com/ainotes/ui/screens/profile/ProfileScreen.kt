@@ -16,9 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -328,106 +325,6 @@ fun ProfileScreen(
                                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
-                            }
-
-                            // ── API Key Settings ─────────────────────────────────────────
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "🔑 Gemini AI API Key",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                Text(
-                                    text = if (uiState.hasUserApiKey)
-                                        "✅ You have a personal API key saved — no rate limits!"
-                                    else
-                                        "The app uses a shared API key which may hit rate limits when multiple people use it. Add your own FREE key from aistudio.google.com/apikey to fix this permanently.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (uiState.hasUserApiKey) 
-                                        Color(0xFF27AE60) 
-                                    else 
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-
-                                if (!uiState.hasUserApiKey) {
-                                    var keyVisible by remember { mutableStateOf(false) }
-                                    OutlinedTextField(
-                                        value = uiState.apiKeyInput,
-                                        onValueChange = { viewModel.onApiKeyInputChanged(it) },
-                                        label = { Text("Your Gemini API Key") },
-                                        placeholder = { Text("AIzaSy...") },
-                                        leadingIcon = { Icon(Icons.Default.VpnKey, null, tint = Primary) },
-                                        trailingIcon = {
-                                            IconButton(onClick = { keyVisible = !keyVisible }) {
-                                                Icon(
-                                                    imageVector = if (keyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                    contentDescription = if (keyVisible) "Hide" else "Show",
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        },
-                                        visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                                            focusedBorderColor = Primary,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                                            focusedLabelColor = Primary,
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = { viewModel.saveApiKey() },
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                                    ) {
-                                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "Save API Key",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        )
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = { viewModel.clearApiKey() },
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color.Transparent,
-                                            contentColor = MaterialTheme.colorScheme.onSurface
-                                        ),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "Remove My API Key",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        )
-                                    }
-                                }
-
-                                uiState.apiKeyMessage?.let { msg ->
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = msg,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (msg.startsWith("✅")) Color(0xFF27AE60) else ErrorColor,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
                             }
 
                             // App Theme Settings Selection
