@@ -80,14 +80,21 @@ class GeminiRepository @Inject constructor(
         }
 
         var apiKey = doc?.getString("key") ?: ""
+        val fetchedFromFirestore = apiKey.isNotBlank()
         
         // 2. Dual-Safe Fallback: If Firestore key is blank, use the local.properties build key
         if (apiKey.isBlank()) {
-            Log.i(TAG, "No key found in Firestore secrets collection. Using local.properties fallback key.")
+            Log.i(TAG, "No API key found in Firestore secrets collection. Falling back to local.properties key.")
             apiKey = BuildConfig.GEMINI_API_KEY
         }
 
-        if (apiKey.isBlank() || apiKey == "YOUR_API_KEY") {
+        // Print clear diagnostics to Logcat to help align the key source
+        Log.d(
+            TAG,
+            "generateWithFallback: Using key from ${if (fetchedFromFirestore) "Firestore" else "local.properties fallback"} (length=${apiKey.length}, startsWith=${if (apiKey.length > 5) apiKey.substring(0, 5) else "N/A"})"
+        )
+
+        if (apiKey.isBlank() || apiKey == "YOUR_API_KEY" || apiKey.contains("PASTE_YOUR_NEW_FREE_KEY_HERE")) {
             throw RuntimeException("AI API key is not configured. Please add 'secrets/gemini' with field 'key' in Firestore, or set GEMINI_API_KEY in local.properties.")
         }
 
