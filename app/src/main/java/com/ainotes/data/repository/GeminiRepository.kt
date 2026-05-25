@@ -2,6 +2,7 @@ package com.ainotes.data.repository
 
 import android.net.Uri
 import android.util.Log
+import com.ainotes.BuildConfig
 import com.ainotes.data.model.*
 import com.ainotes.util.FileHelper
 import com.ainotes.util.OcrHelper
@@ -61,32 +62,39 @@ class GeminiRepository @Inject constructor(
     private val gson = Gson()
 
     /**
-     * Fetches the shared Gemini API key from the Firebase Firestore secrets document
-     * and processes generation using direct REST calls with robust fallbacks.
-     * This avoids hardcoding keys in the APK, hides keys from users,
-     * and functions without requiring the paid Firebase Cloud Functions Blaze Plan!
+     * Retrieves the Gemini API key using a dual-safe strategy:
+     * 1. Tries to retrieve the shared key securely from Cloud Firestore (secrets/gemini -> key).
+     * 2. If Firestore is empty/not yet configured, seamlessly falls back to the build-time key compiled in local.properties.
+     * This guarantees the app works out-of-the-box for the developer, and works for distributed friends once Firestore is configured!
      */
     private suspend fun generateWithFallback(prompt: String): String = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser
             ?: throw IllegalStateException("You must be signed in to generate notes.")
 
-        // 1. Retrieve the Gemini API key securely from Firestore config
+        // 1. Retrieve the Gemini API key from Firestore secrets collection
         val doc = try {
             firestore.collection("secrets").document("gemini").get().await()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to retrieve API key from Firestore: ${e.message}", e)
-            throw RuntimeException("Failed to load secure API key. Please check your internet connection or sign-in state.")
+            Log.w(TAG, "Firestore key fetch failed or document not found: ${e.message}")
+            null
         }
 
-        val apiKey = doc.getString("key") ?: ""
+        var apiKey = doc?.getString("key") ?: ""
+        
+        // 2. Dual-Safe Fallback: If Firestore key is blank, use the local.properties build key
         if (apiKey.isBlank()) {
-            throw RuntimeException("AI API key is not configured on the server. Please add 'secrets/gemini' with field 'key' in Firestore.")
+            Log.i(TAG, "No key found in Firestore secrets collection. Using local.properties fallback key.")
+            apiKey = BuildConfig.GEMINI_API_KEY
+        }
+
+        if (apiKey.isBlank() || apiKey == "YOUR_API_KEY") {
+            throw RuntimeException("AI API key is not configured. Please add 'secrets/gemini' with field 'key' in Firestore, or set GEMINI_API_KEY in local.properties.")
         }
 
         val requestBodyJson = buildRequestJson(prompt)
         var lastError = "All AI models failed. Please try again."
 
-        // 2. Cascade through models with exponential backoff on 429 errors
+        // 3. Cascade through models with exponential backoff on 429 errors
         for (modelName in MODELS) {
             var retryCount = 0
             var rateLimitHit = false
